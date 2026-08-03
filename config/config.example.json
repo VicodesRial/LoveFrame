@@ -1,0 +1,15 @@
+{
+  "display": {
+    "width": 1024,
+    "height": 600,
+    "fullscreen": false
+  },
+  "slideshow": {
+    "interval_seconds": 15
+  },
+  "messages": {
+    "path": "data/messages.example.json",
+    "timezone": "America/New_York",
+    "rollover_hour": 8
+  }
+}

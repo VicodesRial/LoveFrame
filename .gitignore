@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+cache/
+.DS_Store
+
+# Private LoveFrame content
+assets/photos/*
+!assets/photos/.gitkeep
+data/messages.local.json
+config/config.local.json
