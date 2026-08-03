@@ -5,9 +5,9 @@ LoveFrame is a lightweight, offline photo display for a Raspberry Pi Zero 2 W an
 carousel and one daily message, with touch navigation and an 08:00 America/New_York
 message rollover.
 
-This checkpoint contains Phases A and B only: project configuration and the deterministic
-daily-message scheduler. Photo loading, Pygame rendering, touch controls, Pi autostart,
-and deployment scripts are intentionally deferred to later phases.
+This checkpoint contains Phases A through C: project configuration, the deterministic
+daily-message scheduler, and a low-memory Pillow photo pipeline. Pygame rendering, touch
+controls, Pi autostart, and deployment scripts are intentionally deferred to later phases.
 
 ## Requirements
 
@@ -64,6 +64,19 @@ The effective message date changes at 08:00 in `America/New_York`:
 Aware datetimes are converted to New York as absolute instants. Naive datetimes are
 interpreted as New York wall-clock time. Production callers should pass aware datetimes.
 
+## Photo pipeline
+
+`app.photo_loader.PhotoLoader` discovers JPEG, JPG, PNG, and WEBP files in one directory
+without decoding them. It ignores hidden, unsupported, and temporary files. Images are
+decoded only when requested, corrected using EXIF orientation, and center-cropped to fill
+the configured output dimensions without stretching.
+
+The loader retains only the current prepared image and an optional prefetched next image.
+Calling `advance()` releases the previous Pillow image. Corrupt or unreadable files are
+skipped, and an in-memory placeholder is generated when no usable photo is available.
+Callers should not retain prepared images after advancing the loader and should call
+`close()` during shutdown.
+
 ## Run the current checkpoint
 
 Print the current example message:
@@ -90,5 +103,5 @@ Run all tests:
 python -m pytest
 ```
 
-The current CLI prints a message only; it is not the photo-frame interface. The photo
-loader and Pygame UI will be added in Phases C and D.
+The current CLI prints a message only; it is not the photo-frame interface. The Pygame UI
+will be added in Phase D.
