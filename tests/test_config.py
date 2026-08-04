@@ -1,9 +1,82 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
 
 from app.config import AppConfig, load_config
+
+
+@pytest.mark.parametrize(
+    "timezone_value",
+    [
+        "/bad-zone",
+        "../UTC",
+        "./UTC",
+        "America/../UTC",
+        "Mars/Olympus",
+    ],
+)
+def test_invalid_timezone_uses_private_safe_default(
+    tmp_path: Path,
+    caplog,
+    timezone_value: str,
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"messages": {"timezone": timezone_value}}),
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        config = load_config(path)
+
+    warnings = [record.getMessage() for record in caplog.records if record.name == "app.config"]
+    assert config.timezone_name == "America/New_York"
+    assert warnings == ["Ignoring unknown configured timezone"]
+    assert timezone_value not in caplog.text
+
+
+@pytest.mark.parametrize("timezone_value", ["", "   "])
+def test_empty_timezone_preserves_default_without_warning(
+    tmp_path: Path,
+    caplog,
+    timezone_value: str,
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"messages": {"timezone": timezone_value}}),
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        config = load_config(path)
+
+    assert config.timezone_name == "America/New_York"
+    assert not [record for record in caplog.records if record.name == "app.config"]
+
+
+@pytest.mark.parametrize(
+    ("timezone_value", "expected"),
+    [("UTC", "UTC"), (" America/New_York ", "America/New_York")],
+)
+def test_valid_timezone_is_normalized(
+    tmp_path: Path,
+    caplog,
+    timezone_value: str,
+    expected: str,
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"messages": {"timezone": timezone_value}}),
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.config"):
+        config = load_config(path)
+
+    assert config.timezone_name == expected
+    assert not [record for record in caplog.records if record.name == "app.config"]
 
 
 def test_default_theme_values() -> None:

@@ -184,12 +184,13 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
     timezone_value = messages.get("timezone")
     timezone_name = defaults.timezone_name
     if isinstance(timezone_value, str) and timezone_value.strip():
+        normalized_timezone = timezone_value.strip()
         try:
-            ZoneInfo(timezone_value)
-        except ZoneInfoNotFoundError:
+            ZoneInfo(normalized_timezone)
+        except (ZoneInfoNotFoundError, ValueError):
             LOGGER.warning("Ignoring unknown configured timezone")
         else:
-            timezone_name = timezone_value
+            timezone_name = normalized_timezone
 
     rollover_value = messages.get("rollover_hour", defaults.rollover_hour)
     rollover_hour = (

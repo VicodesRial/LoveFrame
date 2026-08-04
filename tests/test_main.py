@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import app.main as main_module
@@ -44,6 +45,25 @@ def test_main_passes_fullscreen_override_to_display(tmp_path: Path, monkeypatch)
 
     assert result == 0
     assert received[0].fullscreen is True
+
+
+def test_main_starts_with_non_normalized_timezone_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _disable_file_logging(monkeypatch)
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"messages": {"timezone": "/bad-zone"}}),
+        encoding="utf-8",
+    )
+    received = []
+    monkeypatch.setattr(main_module, "run_display", lambda config: received.append(config) or 0)
+
+    result = main_module.main(["--config", str(config_path), "--windowed"])
+
+    assert result == 0
+    assert received[0].timezone_name == "America/New_York"
 
 
 def test_main_unwinds_cleanly_when_termination_is_requested(
