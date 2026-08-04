@@ -5,9 +5,9 @@ LoveFrame is a lightweight, offline photo display for a Raspberry Pi Zero 2 W an
 carousel and one daily message, with touch navigation and an 08:00 America/New_York
 message rollover.
 
-This checkpoint contains Phases A through D: project configuration, the deterministic
-daily-message scheduler, a low-memory Pillow photo pipeline, and the Pygame display.
-Pi autostart and deployment scripts are intentionally deferred to Phase E.
+This checkpoint contains Phases A through E: project configuration, the deterministic
+daily-message scheduler, a low-memory Pillow photo pipeline, the Pygame display, and safe
+Raspberry Pi installation, deployment, startup, logging, and diagnostics tooling.
 
 ## Requirements
 
@@ -174,6 +174,58 @@ Run borderless fullscreen on the Raspberry Pi:
 
 ```bash
 python -m app.main --fullscreen
+```
+
+The supported launchers select the correct environment and content paths:
+
+```bash
+# macOS: requires the repository's .venv and opens a 1024x600 window
+./scripts/run_mac.sh
+
+# Raspberry Pi: uses system Python packages and requires private content
+./scripts/run_pi.sh
+
+# Raspberry Pi: deliberately use tracked examples for a test
+./scripts/run_pi.sh --example-content
+```
+
+## Raspberry Pi installation and deployment
+
+The complete beginner-oriented procedure is in [docs/PI_SETUP.md](docs/PI_SETUP.md).
+The Pi installer uses only `python3`, `python3-pygame`, `python3-pil`,
+`fonts-dejavu-core`, and `rsync`. It never copies the macOS virtual environment or changes
+boot, HDMI, touch, rotation, or resolution settings. Autostart is opt-in:
+
+```bash
+# Run on the Pi
+./scripts/install_pi.sh
+./scripts/install_pi.sh --enable-autostart
+```
+
+Normal deployment preserves Pi-local photos, private messages, and local configuration:
+
+```bash
+# Run on the Mac
+./scripts/deploy_to_pi.sh
+./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh --include-private
+```
+
+The destination defaults to `vic@loveframe.local:/home/vic/LoveFrame`. Override it with
+`--user`, `--host`, and `--project-dir`, or the corresponding `PI_USER`, `PI_HOST`, and
+`PI_PROJECT_DIR` environment variables. Private deployment prints a warning and requires
+interactive confirmation unless `--yes` is explicitly supplied. Deployment never uses
+`--delete` and excludes Git data, virtual environments, caches, logs, editor files, and
+credential-like key files.
+
+On the Pi, application logs are stored at
+`~/.local/state/loveframe/loveframe.log`. The log rotates at 1 MiB and retains three
+backups. It records lifecycle events, filename-only content selection, skipped-photo error
+types, and fatal errors; it never records message or photo contents. Read-only diagnostics
+are available with:
+
+```bash
+./scripts/pi_diagnostics.sh
 ```
 
 Command-line `--photos` and `--messages` options override their configured paths. Display,

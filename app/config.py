@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Dict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.logging_config import safe_path_label
+
 LOGGER = logging.getLogger(__name__)
 DEFAULT_CONFIG_PATH = Path("config/config.local.json")
 DEFAULT_PHOTO_FIT = "contain_color"
@@ -141,11 +143,18 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        LOGGER.warning("Could not load configuration from %s: %s", path, type(error).__name__)
+        LOGGER.warning(
+            "Could not load configuration from %s: %s",
+            safe_path_label(path),
+            type(error).__name__,
+        )
         return AppConfig()
 
     if not isinstance(raw, dict):
-        LOGGER.warning("Ignoring configuration with a non-object root: %s", path)
+        LOGGER.warning(
+            "Ignoring configuration with a non-object root: %s",
+            safe_path_label(path),
+        )
         return AppConfig()
 
     defaults = AppConfig()
