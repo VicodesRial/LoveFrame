@@ -5,9 +5,29 @@ LoveFrame is a lightweight, offline photo display for a Raspberry Pi Zero 2 W an
 carousel and one daily message, with touch navigation and an 08:00 America/New_York
 message rollover.
 
-This checkpoint contains Phases A and B only: project configuration and the deterministic
-daily-message scheduler. Photo loading, Pygame rendering, touch controls, Pi autostart,
-and deployment scripts are intentionally deferred to later phases.
+Software Phases A through E are complete: project configuration, the deterministic
+daily-message scheduler, a low-memory Pillow photo pipeline, the Pygame display, and safe
+Raspberry Pi installation, deployment, startup, logging, and diagnostics tooling.
+
+## Release status
+
+| Area | Status |
+|---|---|
+| Software Phases A–E | Complete |
+| Automated test suite | Complete |
+| Comprehensive software audit | Complete after the timezone correction |
+| Mac 1024×600 acceptance | Complete |
+| Merge into `main` | Pending until the pull request is merged |
+| Raspberry Pi deployment | Pending |
+| Physical touchscreen testing | Pending |
+| 24-hour reliability testing | Pending |
+| Enclosure | Pending |
+
+The Mac acceptance run covered portrait, landscape, panoramic, and empty-folder
+presentation; short and long messages; the theme and decorations; fades; mouse controls;
+rapid navigation; cursor hiding; and clean keyboard exit. No Raspberry Pi, physical
+touchscreen, autostart, thermal, power, or 24-hour result is claimed. The remaining release
+steps are tracked in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Requirements
 
@@ -64,24 +84,231 @@ The effective message date changes at 08:00 in `America/New_York`:
 Aware datetimes are converted to New York as absolute instants. Naive datetimes are
 interpreted as New York wall-clock time. Production callers should pass aware datetimes.
 
-## Run the current checkpoint
+## Photo pipeline
+
+`app.photo_loader.PhotoLoader` discovers JPEG, JPG, PNG, and WEBP files in one directory
+without decoding them. It ignores hidden, unsupported, and temporary files. Images are
+decoded only when requested and corrected using EXIF orientation.
+
+The default `photos.photo_fit` setting is `contain_color`. It centers the complete,
+aspect-preserving photograph over a solid pastel-pink background without stretching,
+cropping, or blur. Portrait photos receive side bars and wide photos receive top and bottom
+bars. Set it to `contain_blur` for the earlier blurred-photo background or `cover` for the
+original centered crop-to-fill behavior. Invalid values safely use `contain_color`.
+
+The default background is `#F8DDE3`. Any standard six-digit `#RRGGBB` value can be set with
+`photos.photo_background_color`. Contain-color composition happens in the existing photo
+worker and retains only its final display-sized result; it does not run Gaussian blur.
+
+The loader retains only the current prepared image and an optional prefetched next image.
+Calling `advance()` releases the previous Pillow image. Corrupt or unreadable files are
+skipped, and an in-memory placeholder is generated when no usable photo is available.
+Callers should not retain prepared images after advancing the loader and should call
+`close()` during shutdown.
+
+The display owns one background photo worker. It prepares the initial current and next
+photos, performs fit-mode composition and navigation promotion, and replenishes the single
+next-image cache. The main thread only receives completed 1024×600 Pillow compositions and
+creates Pygame surfaces, so touch handling and automatic rotation never wait for image
+decoding or blur processing. The worker has one request slot and one result slot rather than
+an unbounded task queue, and it is joined before loader shutdown.
+
+Before decoding, the loader rejects sources above 20,000,000 pixels by default. This cap
+is configurable through `PhotoLoader(max_source_pixels=...)` without changing Pillow's
+global decompression-bomb protection. JPEG files within the limit use aspect-aware native
+decoder downsampling before EXIF correction and RGB conversion to reduce peak memory.
+Resize unusually large photos before copying them to the Pi instead of raising the limit.
+
+## Pygame display
+
+The display changes photos every 15 seconds by default, polls the daily message once per
+minute, and uses a short cached fade. Touch or click the left third for the previous photo,
+the right third for the next photo, and the center third to hide or show the message. Press
+`Esc` or `Q` to exit during development. The pointer hides after three seconds of inactivity.
+Slideshow intervals, message polling, fades, cursor inactivity, and pointer-event
+deduplication all use injectable monotonic seconds, so wall-clock changes and long runtimes
+cannot strand a timer.
+
+The translucent pastel-pink card shows the configured local time above the daily message.
+It uses 12-hour time without a leading zero by default; set `messages.clock_format` to
+`24h` for 24-hour time or `messages.show_clock` to `false` to hide the clock. Clock and
+message font sizes default to 34 and 25 pixels at 1024×600 and scale proportionally at
+other resolutions.
+Long messages progressively shrink to a documented 16-pixel reference minimum, also
+scaled with the display. Content that is still too long at that minimum is safely
+ellipsized rather than extending beyond the card. The overlay is rebuilt only when the
+localized minute or daily message changes.
+
+Theme colors accept standard six-digit hexadecimal values. Invalid colors and opacity
+values safely return to the palette below. The card remains a separate cached Pygame
+overlay, so changing its theme does not require photographs to be decoded again.
+
+```json
+"photos": {
+  "photo_fit": "contain_color",
+  "photo_background_color": "#F8DDE3"
+},
+"messages": {
+  "show_clock": true,
+  "clock_format": "12h",
+  "clock_font_size": 34,
+  "message_font_size": 25,
+  "card_background_color": "#EFAFBD",
+  "card_opacity": 225,
+  "text_color": "#4A2532",
+  "clock_color": "#4A2532"
+},
+"decorations": {
+  "show_decorations": true,
+  "decoration_style": "pixel_hearts",
+  "heart_color": "#D85B7B",
+  "heart_highlight_color": "#FFF0F4",
+  "sparkle_color": "#C94F70",
+  "animate_decorations": true,
+  "decoration_density": "medium"
+}
+```
+
+Pixel-art hearts, outlined hearts, diamonds, dotted trails, and four-point sparkles are drawn
+procedurally from integer-aligned Pygame rectangles; no emoji or image assets are used.
+`medium` is the default and produces up to 18 motifs across two sufficiently large bars.
+`low` preserves the sparse four-motif arrangement. `high` adds at most approximately 30%
+more small motifs than the medium layout. Invalid density values still use the safe `low`
+fallback, and invalid colors return to the documented palette.
+
+Separate deterministic asymmetric templates fill vertical sidebars and horizontal bars.
+Their motif budget scales with each bar's actual area, so narrow bars automatically receive
+fewer decorations. Every motif stays inside its pink bar and outside an expanded message-card
+exclusion zone; unsafe lower-priority motifs are omitted. Photos without usable bars retain
+the sparse corner fallback. Only medium and large hearts use the three-frame monotonic pulse;
+small hearts, outlines, diamonds, trails, and sparkles stay static. No decoration surface is
+rebuilt during ordinary frame rendering.
+
+Run windowed on macOS:
+
+```bash
+python -m app.main --windowed
+```
+
+Run borderless fullscreen on the Raspberry Pi:
+
+```bash
+python -m app.main --fullscreen
+```
+
+The supported launchers select the correct environment and content paths:
+
+```bash
+# macOS: requires the repository's .venv and opens a 1024x600 window
+./scripts/run_mac.sh
+
+# Raspberry Pi: uses system Python packages and requires private content
+./scripts/run_pi.sh
+
+# Raspberry Pi: deliberately use tracked examples for a test
+./scripts/run_pi.sh --example-content
+```
+
+## Raspberry Pi installation and deployment
+
+The complete beginner-oriented procedure is in [docs/PI_SETUP.md](docs/PI_SETUP.md).
+The Pi installer uses only `python3`, `python3-pygame`, `python3-pil`,
+`fonts-dejavu-core`, and `rsync`. It never copies the macOS virtual environment or changes
+boot, HDMI, touch, rotation, or resolution settings. Autostart is opt-in:
+
+```bash
+# Run on the Pi
+./scripts/install_pi.sh
+./scripts/install_pi.sh --enable-autostart
+```
+
+The installer intentionally does not create private configuration or message files.
+Production photos, `messages.local.json`, and `config.local.json` are transferred only by an
+explicit private-content deployment. This prevents generic examples from silently becoming
+production content and prevents installation from overwriting private data. Normal
+`run_pi.sh` startup refuses to continue when required private configuration or messages are
+absent; use `--example-content` only for an intentional initial generic test.
+
+Normal deployment preserves Pi-local photos, private messages, and local configuration:
+
+```bash
+# Run on the Mac
+./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh
+./scripts/deploy_to_pi.sh --include-private
+```
+
+The destination defaults to `vic@loveframe.local:/home/vic/LoveFrame`. Override it with
+`--user`, `--host`, and `--project-dir`, or the corresponding `PI_USER`, `PI_HOST`, and
+`PI_PROJECT_DIR` environment variables. Private deployment prints a warning and requires
+interactive confirmation unless `--yes` is explicitly supplied. Deployment never uses
+`--delete` and excludes Git data, virtual environments, caches, logs, editor files, and
+credential-like key files.
+
+On the Pi, application logs are stored at
+`~/.local/state/loveframe/loveframe.log`. The log rotates at 1 MiB and retains three
+backups. It records lifecycle events, filename-only content selection, skipped-photo error
+types, and fatal errors; it never records message or photo contents. Read-only diagnostics
+are available with:
+
+```bash
+./scripts/pi_diagnostics.sh
+```
+
+Command-line `--photos` and `--messages` options override their configured paths. Display,
+slideshow, photo-memory, and message-poll settings are documented in
+`config/config.example.json`.
+
+## Everyday content updates
+
+Use this workflow from the repository on the Mac for routine code updates:
+
+```bash
+./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh
+```
+
+Normal deployment preserves private content already stored on the Pi. When the Mac's photos,
+private messages, and local configuration are intentionally ready to replace or update the
+Pi copies, run:
+
+```bash
+./scripts/deploy_to_pi.sh --include-private
+```
+
+Restart LoveFrame on the Pi so newly added photos are discovered:
+
+```bash
+cd /home/vic/LoveFrame
+pkill -TERM -f "python3 -m app.main"
+./scripts/run_pi.sh
+```
+
+The launcher uses `flock` to prevent duplicate running instances and waits up to 15 seconds
+for a terminating instance to release its lock before refusing the new launch. After labwc
+autostart has been enabled, rebooting the Pi is also an acceptable restart method. Photo
+discovery occurs at application startup, so newly transferred photos are not available until
+that restart.
+
+## Message diagnostic
 
 Print the current example message:
 
 ```bash
-python -m app.main --messages data/messages.example.json
+python -m app.main --print-message --messages data/messages.example.json
 ```
 
 Use local configuration and its configured message path:
 
 ```bash
-python -m app.main --config config/config.local.json
+python -m app.main --print-message --config config/config.local.json
 ```
 
 An ISO timestamp can be supplied for a deterministic check:
 
 ```bash
-python -m app.main --messages data/messages.example.json --at 2026-09-14T08:00:00-04:00
+python -m app.main --print-message --messages data/messages.example.json \
+  --at 2026-09-14T08:00:00-04:00
 ```
 
 Run all tests:
@@ -90,5 +317,5 @@ Run all tests:
 python -m pytest
 ```
 
-The current CLI prints a message only; it is not the photo-frame interface. The photo
-loader and Pygame UI will be added in Phases C and D.
+The interface remains fully offline after its Python dependencies and private local content
+have been installed.

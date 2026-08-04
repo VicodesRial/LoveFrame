@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+from app.logging_config import safe_path_label
+
 LOGGER = logging.getLogger(__name__)
 DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_ROLLOVER_TIME = time(8, 0)
@@ -35,11 +37,18 @@ def load_message_catalog(path: Path) -> MessageCatalog:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        LOGGER.warning("Could not load message file %s: %s", path, type(error).__name__)
+        LOGGER.warning(
+            "Could not load message file %s: %s",
+            safe_path_label(path),
+            type(error).__name__,
+        )
         return MessageCatalog()
 
     if not isinstance(raw, dict):
-        LOGGER.warning("Ignoring message file with a non-object root: %s", path)
+        LOGGER.warning(
+            "Ignoring message file with a non-object root: %s",
+            safe_path_label(path),
+        )
         return MessageCatalog()
 
     rotation_raw = raw.get("rotation", [])
@@ -64,7 +73,10 @@ def load_message_catalog(path: Path) -> MessageCatalog:
 
     catalog = MessageCatalog(rotation=rotation, dated=dated)
     if not catalog.rotation and not catalog.dated:
-        LOGGER.warning("Message file contains no usable messages: %s", path)
+        LOGGER.warning(
+            "Message file contains no usable messages: %s",
+            safe_path_label(path),
+        )
     return catalog
 
 

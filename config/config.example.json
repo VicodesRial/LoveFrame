@@ -2,14 +2,41 @@
   "display": {
     "width": 1024,
     "height": 600,
-    "fullscreen": false
+    "fullscreen": false,
+    "cursor_hide_seconds": 3,
+    "frames_per_second": 30
   },
   "slideshow": {
-    "interval_seconds": 15
+    "interval_seconds": 15,
+    "fade_duration_ms": 400
+  },
+  "photos": {
+    "path": "assets/photos",
+    "max_source_pixels": 20000000,
+    "photo_fit": "contain_color",
+    "photo_background_color": "#F8DDE3"
   },
   "messages": {
     "path": "data/messages.example.json",
     "timezone": "America/New_York",
-    "rollover_hour": 8
+    "rollover_hour": 8,
+    "poll_seconds": 60,
+    "show_clock": true,
+    "clock_format": "12h",
+    "clock_font_size": 34,
+    "message_font_size": 25,
+    "card_background_color": "#EFAFBD",
+    "card_opacity": 225,
+    "text_color": "#4A2532",
+    "clock_color": "#4A2532"
+  },
+  "decorations": {
+    "show_decorations": true,
+    "decoration_style": "pixel_hearts",
+    "heart_color": "#D85B7B",
+    "heart_highlight_color": "#FFF0F4",
+    "sparkle_color": "#C94F70",
+    "animate_decorations": true,
+    "decoration_density": "medium"
   }
 }
