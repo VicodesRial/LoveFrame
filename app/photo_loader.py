@@ -343,7 +343,10 @@ class PhotoLoader:
                 ):
                     self._next = current
                 else:
-                    self._next = self._load_candidate(exclude=current.path)
+                    self._next = self._load_candidate(
+                        exclude=current.path,
+                        fallback=current,
+                    )
             return self._next
 
     def advance(self) -> PreparedPhoto:
@@ -399,7 +402,11 @@ class PhotoLoader:
             self._current = None
             self._next = None
 
-    def _load_candidate(self, exclude: Optional[Path] = None) -> PreparedPhoto:
+    def _load_candidate(
+        self,
+        exclude: Optional[Path] = None,
+        fallback: Optional[PreparedPhoto] = None,
+    ) -> PreparedPhoto:
         candidates: List[Path] = [
             path
             for path in self.paths
@@ -407,14 +414,17 @@ class PhotoLoader:
         ]
         self._rng.shuffle(candidates)
 
-        # Reuse the current path only when no other valid candidate can be loaded.
-        if exclude is not None and exclude not in self._invalid_paths:
-            candidates.append(exclude)
-
         for path in candidates:
             prepared = self._prepare_path(path)
             if prepared is not None:
                 return prepared
+
+        if (
+            fallback is not None
+            and fallback.path == exclude
+            and exclude not in self._invalid_paths
+        ):
+            return fallback
 
         return PreparedPhoto(image=create_placeholder(self.output_size), path=None)
 

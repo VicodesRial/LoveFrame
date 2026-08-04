@@ -6,6 +6,7 @@ import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEPLOY_SCRIPT = REPOSITORY_ROOT / "scripts" / "deploy_to_pi.sh"
+RUN_PI_SCRIPT = REPOSITORY_ROOT / "scripts" / "run_pi.sh"
 SHELL_SCRIPTS = tuple(sorted((REPOSITORY_ROOT / "scripts").glob("*.sh")))
 
 
@@ -130,3 +131,11 @@ def test_connection_values_support_environment_overrides() -> None:
 
     assert result.returncode == 0
     assert "frameuser@frame.example:/srv/frame/LoveFrame/" in result.stdout
+
+
+def test_pi_launcher_supports_immediate_documented_restart() -> None:
+    launcher = RUN_PI_SCRIPT.read_text(encoding="utf-8")
+
+    assert "export PYTHONUNBUFFERED=1" in launcher
+    assert "flock -w 15 9" in launcher
+    assert "exec python3 -m app.main" in launcher

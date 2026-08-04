@@ -562,7 +562,12 @@ def test_single_valid_photo_can_repeat(tmp_path: Path) -> None:
     save_image(tmp_path / "only.png")
     loader = PhotoLoader(tmp_path, output_size=(100, 60))
 
-    assert loader.advance().path == loader.current().path
+    current = loader.current()
+    following = loader.prepare_next()
+
+    assert following is current
+    assert loader.cached_image_count == 1
+    assert loader.advance() is current
     loader.close()
 
 

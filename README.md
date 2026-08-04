@@ -5,9 +5,29 @@ LoveFrame is a lightweight, offline photo display for a Raspberry Pi Zero 2 W an
 carousel and one daily message, with touch navigation and an 08:00 America/New_York
 message rollover.
 
-This checkpoint contains Phases A through E: project configuration, the deterministic
+Software Phases A through E are complete: project configuration, the deterministic
 daily-message scheduler, a low-memory Pillow photo pipeline, the Pygame display, and safe
 Raspberry Pi installation, deployment, startup, logging, and diagnostics tooling.
+
+## Release status
+
+| Area | Status |
+|---|---|
+| Software Phases A–E | Complete |
+| Automated test suite | Complete |
+| Comprehensive software audit | Complete after the timezone correction |
+| Mac 1024×600 acceptance | Complete |
+| Merge into `main` | Pending until the pull request is merged |
+| Raspberry Pi deployment | Pending |
+| Physical touchscreen testing | Pending |
+| 24-hour reliability testing | Pending |
+| Enclosure | Pending |
+
+The Mac acceptance run covered portrait, landscape, panoramic, and empty-folder
+presentation; short and long messages; the theme and decorations; fades; mouse controls;
+rapid navigation; cursor hiding; and clean keyboard exit. No Raspberry Pi, physical
+touchscreen, autostart, thermal, power, or 24-hour result is claimed. The remaining release
+steps are tracked in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 ## Requirements
 
@@ -202,12 +222,19 @@ boot, HDMI, touch, rotation, or resolution settings. Autostart is opt-in:
 ./scripts/install_pi.sh --enable-autostart
 ```
 
+The installer intentionally does not create private configuration or message files.
+Production photos, `messages.local.json`, and `config.local.json` are transferred only by an
+explicit private-content deployment. This prevents generic examples from silently becoming
+production content and prevents installation from overwriting private data. Normal
+`run_pi.sh` startup refuses to continue when required private configuration or messages are
+absent; use `--example-content` only for an intentional initial generic test.
+
 Normal deployment preserves Pi-local photos, private messages, and local configuration:
 
 ```bash
 # Run on the Mac
-./scripts/deploy_to_pi.sh
 ./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh
 ./scripts/deploy_to_pi.sh --include-private
 ```
 
@@ -231,6 +258,37 @@ are available with:
 Command-line `--photos` and `--messages` options override their configured paths. Display,
 slideshow, photo-memory, and message-poll settings are documented in
 `config/config.example.json`.
+
+## Everyday content updates
+
+Use this workflow from the repository on the Mac for routine code updates:
+
+```bash
+./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh
+```
+
+Normal deployment preserves private content already stored on the Pi. When the Mac's photos,
+private messages, and local configuration are intentionally ready to replace or update the
+Pi copies, run:
+
+```bash
+./scripts/deploy_to_pi.sh --include-private
+```
+
+Restart LoveFrame on the Pi so newly added photos are discovered:
+
+```bash
+cd /home/vic/LoveFrame
+pkill -TERM -f "python3 -m app.main"
+./scripts/run_pi.sh
+```
+
+The launcher uses `flock` to prevent duplicate running instances and waits up to 15 seconds
+for a terminating instance to release its lock before refusing the new launch. After labwc
+autostart has been enabled, rebooting the Pi is also an acceptable restart method. Photo
+discovery occurs at application startup, so newly transferred photos are not available until
+that restart.
 
 ## Message diagnostic
 

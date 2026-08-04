@@ -3,4 +3,4 @@
 "/home/vic/LoveFrame/scripts/run_pi.sh" &
 
 # To stop LoveFrame temporarily without disabling future login startup:
-# pkill -TERM -f 'python3 -u -m app.main'
+# pkill -TERM -f "python3 -m app.main"

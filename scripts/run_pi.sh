@@ -79,8 +79,9 @@ export PYTHONUNBUFFERED=1
 
 LOCK_PATH="${STATE_DIRECTORY}/loveframe.lock"
 exec 9>"${LOCK_PATH}"
-if ! flock -n 9; then
-    printf '%s\n' 'LoveFrame is already running; refusing to start a duplicate instance.' >&2
+if ! flock -w 15 9; then
+    printf '%s\n' \
+        'LoveFrame is already running; lock remained held after 15 seconds.' >&2
     exit 1
 fi
 
@@ -90,7 +91,7 @@ printf 'Configuration: %s\n' "${CONFIG_PATH}"
 printf 'Messages: %s\n' "${MESSAGE_PATH}"
 printf 'Photos: %s\n' "${PHOTO_PATH}"
 
-exec python3 -u -m app.main \
+exec python3 -m app.main \
     "${FORWARDED_ARGUMENTS[@]}" \
     --fullscreen \
     --width 1024 \

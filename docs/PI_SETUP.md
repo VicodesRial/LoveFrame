@@ -15,6 +15,24 @@ The defaults are:
 Every connection value can be changed with deployment flags or the `PI_USER`, `PI_HOST`,
 and `PI_PROJECT_DIR` environment variables.
 
+## Release status
+
+| Area | Status |
+|---|---|
+| Software Phases A–E | Complete |
+| Automated test suite | Complete |
+| Comprehensive software audit | Complete after the timezone correction |
+| Mac 1024×600 acceptance | Complete |
+| Merge into `main` | Pending until the pull request is merged |
+| Raspberry Pi deployment | Pending |
+| Physical touchscreen testing | Pending |
+| 24-hour reliability testing | Pending |
+| Enclosure | Pending |
+
+These instructions describe the remaining hardware work; they do not record any Pi,
+touchscreen, autostart, power, thermal, or reliability check as passed. Use
+[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) to record those results.
+
 ## A. Flash Raspberry Pi OS
 
 On the **Mac**, install and open Raspberry Pi Imager. Insert the microSD card and choose:
@@ -94,6 +112,10 @@ the Mac `.venv`; Debian's Pi packages supply the runtime. It creates only the Lo
 user state/log directory. It does not edit `/boot/firmware/config.txt`, change display or
 touch settings, or enable autostart unless explicitly requested.
 
+The installer intentionally does not create private configuration or messages. Those files
+are transferred separately and deliberately so installation cannot overwrite personal
+content or make tracked examples look like production data.
+
 The temporary installer can remain for audit or be removed later by deleting only
 `/home/vic/install_loveframe.sh`.
 
@@ -166,9 +188,14 @@ only generic tracked content:
 ./scripts/run_pi.sh --example-content
 ```
 
+Refusing normal startup when either private file is absent is intentional. Use example mode
+for the first generic display test, then transfer private content explicitly before normal
+operation.
+
 The launcher preserves the labwc Wayland environment, runs fullscreen at 1024×600, uses
-system Python unbuffered, and acquires a single-instance `flock`. A second launch exits
-without creating a duplicate display process.
+system Python unbuffered, and acquires a single-instance `flock`. A launch waits up to 15
+seconds for a terminating instance to release the lock, then exits rather than creating a
+duplicate display process if the lock remains held.
 
 ## I. Test touchscreen controls
 
@@ -230,7 +257,7 @@ tail -n 80 ~/.local/state/loveframe/loveframe.log
 Stop LoveFrame temporarily without changing the next-login behavior:
 
 ```bash
-pkill -TERM -f 'python3 -u -m app.main'
+pkill -TERM -f "python3 -m app.main"
 ```
 
 First stop the running application as shown above. Then edit on the **Pi**:
@@ -289,3 +316,32 @@ Before enclosing the hardware, run LoveFrame for 24 hours and verify:
 - Touch remains aligned after reboot.
 - The message changes within one minute after 08:00 America/New_York.
 - The slideshow continues after Wi-Fi is disconnected.
+
+## O. Everyday content-update workflow
+
+For an ordinary code deployment, run on the **Mac**:
+
+```bash
+./scripts/deploy_to_pi.sh --dry-run
+./scripts/deploy_to_pi.sh
+```
+
+This preserves private photos, messages, and local configuration already on the Pi. To
+intentionally update all three private-content locations from the Mac, run:
+
+```bash
+./scripts/deploy_to_pi.sh --include-private
+```
+
+Then restart the application on the **Pi**:
+
+```bash
+cd /home/vic/LoveFrame
+pkill -TERM -f "python3 -m app.main"
+./scripts/run_pi.sh
+```
+
+New photos are discovered only at application startup. The launcher's `flock` waits up to 15
+seconds for the process signaled by `pkill` to release its lock and still prevents a duplicate
+instance. Once labwc autostart is enabled, rebooting is also an acceptable way to restart
+LoveFrame.
